@@ -8,10 +8,25 @@ import java.util.ArrayList;
 import java.util.List;
 
 import it.polito.tdp.flight.model.Airline;
+import it.polito.tdp.flight.model.AirlineIdMap;
 import it.polito.tdp.flight.model.Airport;
+import it.polito.tdp.flight.model.AirportIdMap;
 import it.polito.tdp.flight.model.Route;
+import it.polito.tdp.flight.model.RouteIdMap;
 
 public class FlightDAO {
+	
+	private AirlineIdMap airlinesIdMap;
+	private AirportIdMap airportsIdMap; 
+	private RouteIdMap routesIdMap;
+	
+	private int idRoute =0;
+	
+	public FlightDAO(AirlineIdMap airlinesIdMap, AirportIdMap airportsIdMap,  RouteIdMap routesIdMap) {
+		this.airlinesIdMap = airlinesIdMap;
+		this.airportsIdMap = airportsIdMap;
+		this.routesIdMap = routesIdMap;
+	}
 
 	public List<Airline> getAllAirlines() {
 		String sql = "SELECT * FROM airline";
@@ -22,9 +37,10 @@ public class FlightDAO {
 			ResultSet res = st.executeQuery();
 
 			while (res.next()) {
-				list.add(new Airline(res.getInt("Airline_ID"), res.getString("Name"), res.getString("Alias"),
+				Airline a = new Airline(res.getInt("Airline_ID"), res.getString("Name"), res.getString("Alias"),
 						res.getString("IATA"), res.getString("ICAO"), res.getString("Callsign"),
-						res.getString("Country"), res.getString("Active")));
+						res.getString("Country"), res.getString("Active"));
+				list.add(this.airlinesIdMap.getOrPutNew(a));
 			}
 			conn.close();
 			return list;
@@ -42,13 +58,24 @@ public class FlightDAO {
 			Connection conn = ConnectDB.getConnection();
 			PreparedStatement st = conn.prepareStatement(sql);
 			ResultSet res = st.executeQuery();
-
+			
+			this.idRoute =0;
+			
 			while (res.next()) {
-				list.add(new Route(res.getString("Airline"), res.getInt("Airline_ID"), res.getString("Source_airport"),
-						res.getInt("Source_airport_ID"), res.getString("Destination_airport"),
-						res.getInt("Destination_airport_ID"), res.getString("Codeshare"), res.getInt("Stops"),
-						res.getString("Equipment")));
+				Airline airline = this.airlinesIdMap.getAirlinebyId(res.getInt("Airline_ID"));
+				Airport sourceAirport = this.airportsIdMap.getAirportbyId(res.getInt("Source_airport_ID")) ;
+				Airport destinationAirport = this.airportsIdMap.getAirportbyId(res.getInt("Destination_airport_ID")) ;
+				
+				Route r = new Route(this.idRoute++, airline, sourceAirport, destinationAirport,
+						res.getString("Codeshare"), res.getInt("Stops"), 	res.getString("Equipment"));
+				
+				list.add(this.routesIdMap.getOrPutNew(r));
+
+				airline.addRoute(this.routesIdMap.getOrPutNew(r));
+				sourceAirport.addRoute(this.routesIdMap.getOrPutNew(r));
+				destinationAirport.addRoute(this.routesIdMap.getOrPutNew(r));
 			}
+			this.idRoute =0;
 			conn.close();
 			return list;
 		} catch (SQLException e) {
@@ -66,10 +93,11 @@ public class FlightDAO {
 			ResultSet res = st.executeQuery();
 
 			while (res.next()) {
-				list.add(new Airport(res.getInt("Airport_ID"), res.getString("name"), res.getString("city"),
+				Airport a = new Airport(res.getInt("Airport_ID"), res.getString("name"), res.getString("city"),
 						res.getString("country"), res.getString("IATA_FAA"), res.getString("ICAO"),
 						res.getDouble("Latitude"), res.getDouble("Longitude"), res.getFloat("timezone"),
-						res.getString("dst"), res.getString("tz")));
+						res.getString("dst"), res.getString("tz"));
+				list.add(this.airportsIdMap.getOrPutNew(a));
 			}
 			conn.close();
 			return list;
@@ -78,18 +106,4 @@ public class FlightDAO {
 			throw new RuntimeException();
 		}
 	}
-
-	public static void main(String args[]) {
-		FlightDAO dao = new FlightDAO();
-
-		List<Airline> airlines = dao.getAllAirlines();
-		System.out.println(airlines);
-
-		List<Airport> airports = dao.getAllAirports();
-		System.out.println(airports);
-
-		List<Route> routes = dao.getAllRoutes();
-		System.out.println(routes);
-	}
-
 }
